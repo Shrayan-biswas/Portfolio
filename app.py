@@ -18,8 +18,8 @@ import streamlit as st
 # NEMOTRON ASSISTANT SETTINGS
 # ----------------------------------------------------------------------------
 NVIDIA_API_KEY = ""  # <-- PASTE YOUR NVIDIA API KEY HERE (starts with nvapi-). Free key: build.nvidia.com
-NEMOTRON_MODEL = "nvidia/nemotron-3-nano-30b-a3b"  # small and fast; any chat model ID from build.nvidia.com works
-NEMOTRON_FALLBACKS = ["nvidia/nvidia-nemotron-nano-9b-v2", "nvidia/llama-3.1-nemotron-nano-8b-v1"]  # tried automatically if the model above is unavailable
+NEMOTRON_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"  # small and fast; any chat model ID from build.nvidia.com works
+NEMOTRON_FALLBACKS = []
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 MAX_QUESTIONS_PER_SESSION = 15  # protects your free quota from heavy use
 MAX_QUESTION_CHARS = 300
@@ -425,6 +425,7 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid #fff!
 [class*="st-key-cli"] input{background:transparent!important;color:#fff!important;font:400 .76rem 'JetBrains Mono',monospace!important;padding-left:.3rem!important}
 [class*="st-key-cli"] input::placeholder{color:rgba(163,163,163,.5)!important}
 [class*="st-key-cli"] [data-testid="stTextInputRootElement"]{border:none!important;background:transparent!important}
+[class*="st-key-cli"] [data-testid="InputInstructions"]{display:none!important}
 [class*="st-key-cli"] [data-testid="stElementContainer"]:has([data-testid="stHorizontalBlock"]){margin:0}
 [class*="st-key-chips"]{padding:.6rem .8rem;background:var(--monolith);border-top:1px solid var(--line)}
 [class*="st-key-chips"] [data-testid="stHorizontalBlock"]{gap:.4rem}
@@ -437,6 +438,11 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid #fff!
 .c-ai{color:var(--chalk);margin-bottom:1rem;padding-left:1rem;border-left:1px solid var(--line)}
 .c-tag{color:#fff;font-weight:700;margin-right:.5rem}
 .c-note{font:400 .62rem 'JetBrains Mono',monospace;letter-spacing:.14em;color:var(--ash);margin-top:.6rem}
+
+.ai-wait .dots::after{content:"";animation:dots 1.2s steps(1) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+@media (prefers-reduced-motion:reduce){.ai-wait .dots::after{animation:none;content:"..."}}
+.c-tag{color:#fff;font-weight:700;margin-right:.5rem}
 
 /* Download buttons */
 [class*="st-key-dl_"] button{background:#fff!important;color:#000!important;border:1px solid #fff!important;border-radius:0;font:700 .7rem 'JetBrains Mono',monospace;letter-spacing:.16em;text-transform:uppercase;padding:.8rem 1.3rem;min-height:0}
@@ -466,10 +472,11 @@ md('<div class="grain" aria-hidden="true"></div>')
 # ----------------------------------------------------------------------------
 # Terminal state and commands
 # ----------------------------------------------------------------------------
+_boot_rng = random.Random(3)
 BOOT = (
-    f'<div class="t-out">BOOT_DIGEST: <b>{"".join(random.Random(3).choice(HEX) for _ in range(40))}</b></div>'
-    '<div class="t-out">Operator shell ready. Try: <b>help</b>, <b>whoami</b>, <b>ls projects</b>, '
-    "<b>skills</b>, <b>cat contact</b>, <b>clear</b>.</div>"
+    f'<div class="t-out">BOOT_DIGEST: <b>{"".join(_boot_rng.choice(HEX) for _ in range(40))}</b></div>'
+    '<div class="t-out">Operator shell ready. Type <b>help</b>, a command like <b>whoami</b>, '
+    "or just ask me anything about Shrayan and the Asthi AI will answer.</div>"
 )
 PROMPT = "0x00@biswas:~&#36;"
 
@@ -484,6 +491,7 @@ def respond(cmd: str) -> str:
             ("education", "degree and certifications"),
             ("cat contact", "how to reach me"),
             ("resume", "how to get my resume"),
+            ("any question", "type it and the Asthi AI answers about me"),
             ("clear", "flush the terminal"),
         ]
         return "".join(f"<div><b>{a}</b> &nbsp;- {b}</div>" for a, b in rows)
@@ -505,18 +513,27 @@ def respond(cmd: str) -> str:
         return "<div>Use the <b>DOWNLOAD RESUME</b> button on this page.</div>"
     if c.startswith("sudo"):
         return "<div>Nice try. Permission denied.</div>"
-    return f'<div>Command not recognised: "{html.escape(cmd)}". Type <b>help</b>.</div>'
+    return None
 
 
 def run_cmd(cmd: str) -> None:
-    cmd = cmd.strip()
-    if not cmd:
+    cmd = cmd.strip()[:MAX_QUESTION_CHARS]
+    if not cmd or st.session_state.get("pending_ai"):
         return
     if cmd.lower() == "clear":
         st.session_state.hist = ['<div class="t-out">Terminal flushed. Type <b>help</b>.</div>']
         return
+    if cmd.lower().startswith("ask "):
+        cmd_for_ai = cmd[4:].strip()
+        answer = None
+    else:
+        cmd_for_ai = cmd
+        answer = respond(cmd)
     st.session_state.hist.append(f'<div><span class="t-prompt">{PROMPT}</span> {html.escape(cmd)}</div>')
-    st.session_state.hist.append(f'<div class="t-out">{respond(cmd)}</div>')
+    if answer is not None:
+        st.session_state.hist.append(f'<div class="t-out">{answer}</div>')
+    else:
+        queue_ai(cmd_for_ai)
 
 
 def submit_cli() -> None:
@@ -598,11 +615,6 @@ def api_error_text(r) -> str:
     return " ".join(str(msg).split())[:180]
 
 
-def model_prompt(model: str) -> str:
-    prompt = system_prompt()
-    return "/no_think\n" + prompt if "9b-v2" in model else prompt  # switches reasoning off for that model
-
-
 def call_nemotron() -> tuple:
     """Returns (ok, text). Tries NEMOTRON_MODEL, then each fallback, and reports the real error if all fail."""
     key = get_api_key().strip().strip("\"'").removeprefix("Bearer ").strip()
@@ -617,7 +629,7 @@ def call_nemotron() -> tuple:
     for model in dict.fromkeys([NEMOTRON_MODEL, *NEMOTRON_FALLBACKS]):
         body = {
             "model": model,
-            "messages": [{"role": "system", "content": model_prompt(model)}]
+            "messages": [{"role": "system", "content": system_prompt()}]
             + [{"role": m["role"], "content": m["content"]} for m in turns],
             "temperature": 0.3,
             "top_p": 0.9,
@@ -632,7 +644,7 @@ def call_nemotron() -> tuple:
             try:
                 r = requests.post(url, headers=headers, json=body, timeout=40)
             except requests.RequestException as exc:
-                return False, f"I couldn't reach the Nemotron service ({type(exc).__name__}). Check your internet connection and try again."
+                return False, f"I couldn't reach the Asthi service ({type(exc).__name__}). Check your internet connection and try again."
             if r.status_code != 400:
                 break
         if r.status_code in (401, 403):
@@ -652,38 +664,34 @@ def call_nemotron() -> tuple:
     return False, f"The model service could not answer ({last}). Check NEMOTRON_MODEL (line {key_line() + 1} of app.py)."
 
 
-def ask_nemotron(question=None) -> None:
-    q = (question if question is not None else st.session_state.get("chat_text", "")).strip()[:MAX_QUESTION_CHARS]
-    if not q:
-        return
+def ai_html(text: str) -> str:
+    safe = html.escape(text).replace("\n", "<br>")
+    return f'<div class="t-out"><span class="c-tag">ASTHI&gt;</span>{safe}</div>'
+
+
+def queue_ai(question: str) -> None:
+    """Called from the terminal: shows a 'thinking' line now, the answer is fetched right after the redraw."""
     if st.session_state.chat_count >= MAX_QUESTIONS_PER_SESSION:
-        st.session_state.chat.append({"role": "assistant", "content": f"Question limit reached for this session. Email {EMAIL} to continue.", "ok": False})
+        st.session_state.hist.append(ai_html(f"Question limit reached for this session. Email {EMAIL} to continue."))
         return
     st.session_state.chat_count += 1
-    st.session_state.chat.append({"role": "user", "content": q, "ok": True})
+    st.session_state.chat.append({"role": "user", "content": question, "ok": True})
+    st.session_state.hist.append('<div class="t-out ai-wait"><span class="c-tag">ASTHI&gt;</span>thinking<span class="dots"></span></div>')
+    st.session_state.pending_ai = True
+
+
+def finish_ai() -> None:
     ok, text = call_nemotron()
     st.session_state.chat.append({"role": "assistant", "content": text, "ok": ok})
-
-
-def chat_html() -> str:
-    def fmt(t: str) -> str:
-        return html.escape(t).replace("\n", "<br>")
-
-    msgs = st.session_state.chat or [
-        {"role": "assistant", "ok": False, "content": f"Hi, I'm a small Nemotron-powered assistant. Ask me about {NAME}'s projects, skills, education or how to contact him."}
-    ]
-    out = []
-    for m in msgs:
-        if m["role"] == "user":
-            out.append(f'<div class="c-user"><span class="t-prompt">YOU&gt;</span>{fmt(m["content"])}</div>')
-        else:
-            out.append(f'<div class="c-ai"><span class="c-tag">NEMOTRON&gt;</span>{fmt(m["content"])}</div>')
-    return "".join(out)
+    st.session_state.hist[-1] = ai_html(text)
+    st.session_state.pending_ai = False
 
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
     st.session_state.chat_count = 0
+if "pending_ai" not in st.session_state:
+    st.session_state.pending_ai = False
 
 # ----------------------------------------------------------------------------
 # Navigation
@@ -694,7 +702,6 @@ md(
 <a class="brand" href="#identity"><i></i>0x00 // S.BISWAS</a>
 <div class="nav-links">
 <a href="#identity">~/identity</a><a href="#about">~/about</a><a href="#projects">~/projects</a>
-<a href="#assistant">~/assistant</a>
 <a href="#arsenal">~/arsenal</a><a href="#credentials">~/credentials</a><a href="#comms">~/comms</a>
 </div>
 <div class="nav-icons">{icon_link("github", GITHUB, "GitHub")}{icon_link("linkedin", LINKEDIN, "LinkedIn")}{icon_link("mail", "mailto:" + EMAIL, "Email")}</div>
@@ -736,16 +743,19 @@ with left:
 
 with right:
     with st.container(key="cli"):
-        md('<div class="cli-head"><span><i></i>TTY0 // BISWAS_AUDIT_CONSOLE</span><span>INTERACTIVE</span></div>')
+        md(f'<div class="cli-head"><span><i></i>TTY0 // BISWAS_AUDIT_CONSOLE</span><span>{"ASTHI AI: ON" if get_api_key() else "INTERACTIVE"}</span></div>')
         md(f'<div class="cli-out"><div class="cli-in">{"".join(st.session_state.hist)}</div></div>')
         with st.form("cli_form", clear_on_submit=True):
             c1, c2 = st.columns([5, 1])
-            c1.text_input("command", key="cli_text", placeholder="type a command, e.g. whoami", label_visibility="collapsed")
+            c1.text_input("command", key="cli_text", placeholder="ask anything about Shrayan, or type help", label_visibility="collapsed")
             c2.form_submit_button("RUN", on_click=submit_cli)
         with st.container(key="chips"):
             chip_cols = st.columns(5)
             for col, cmd in zip(chip_cols, ["help", "whoami", "ls projects", "skills", "cat contact"]):
                 col.button(cmd, key=f"chip_{cmd}", on_click=run_cmd, args=(cmd,))
+        if st.session_state.pending_ai:
+            finish_ai()
+            st.rerun()
 
 # ----------------------------------------------------------------------------
 # About
@@ -762,36 +772,6 @@ md(
 </div>
 """
 )
-
-# ----------------------------------------------------------------------------
-# Assistant (Nemotron chat)
-# ----------------------------------------------------------------------------
-md(f'<div class="hdiv">{hash_line(15)}</div>')
-md(
-    f"""
-<div id="assistant" class="sec">
-<div class="kicker">~/assistant // ASK NEMOTRON ANYTHING ABOUT {NAME.split()[0].upper()}</div>
-{hash_heading("ASSISTANT", 101)}
-</div>
-"""
-)
-with st.container(key="cli_chat"):
-    md(f'<div class="cli-head"><span><i></i>NEMOTRON // PORTFOLIO_ASSISTANT</span><span>{html.escape(NEMOTRON_MODEL.split("/")[-1])}</span></div>')
-    md(f'<div class="cli-out"><div class="cli-in">{chat_html()}</div></div>')
-    with st.form("chat_form", clear_on_submit=True):
-        q1, q2 = st.columns([5, 1])
-        q1.text_input("question", key="chat_text", placeholder="Ask about skills, projects, education...", max_chars=MAX_QUESTION_CHARS, label_visibility="collapsed")
-        q2.form_submit_button("SEND", on_click=ask_nemotron)
-    with st.container(key="chips_chat"):
-        suggestions = {
-            "His skills": "What are Shrayan's main skills and tools?",
-            "DroidShield": "Tell me about the DroidShield project.",
-            "Education": "What is Shrayan's education and which certifications does he have?",
-            "Contact": "How can I contact Shrayan?",
-        }
-        for col, (label, question) in zip(st.columns(4), suggestions.items()):
-            col.button(label, key=f"ask_{label}", on_click=ask_nemotron, args=(question,))
-md('<div class="c-note">AI-generated answers based only on the content of this portfolio. Responses may contain mistakes.</div>')
 
 # ----------------------------------------------------------------------------
 # Projects
