@@ -11,9 +11,9 @@ jobs:
   keep-alive:
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Keep Streamlit app alive
-        uses: gpenessot/streamlit-keep-alive@v1
-        with:
-          app-urls: |
-            https://shrayan06-portfolio.streamlit.app/
+   steps:
+  - name: Keep Streamlit app alive
+    uses: gpenessot/streamlit-keep-alive@1640101
+    with:
+      app-urls: |
+        https://shrayan06-portfolio.streamlit.app
