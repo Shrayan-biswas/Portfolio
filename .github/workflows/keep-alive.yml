@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Keep Streamlit app alive
-        uses: gpenessot/streamlit-keep-alive@1640101
+        uses: gpenessot/streamlit-keep-alive@1640101c229364726a5f3adf78ad095c53ef2283
         with:
           app-urls: |
             https://shrayan06-portfolio.streamlit.app
