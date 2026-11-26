@@ -316,6 +316,12 @@ Version Control  Git & GitHub
   <code>“The best way to understand security is to understand how things work — and how they fail.”</code>
 </p>
 
+---
+
+<p align="center">
+  © 2026 Shrayan Biswas · Released under the <a href="./LICENSE">MIT License</a>.
+</p>
+
 <p align="center">
   <img src="https://capsule-render.vercel.app/api?type=rect&height=50&color=0:00FF41,100:00D9FF" width="100%" alt="Footer"/>
 </p>
