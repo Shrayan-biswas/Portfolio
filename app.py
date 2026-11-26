@@ -839,6 +839,21 @@ def toggle_chat() -> None:
     st.session_state.chat_open = not st.session_state.chat_open
 
 
+def submit_floating_chat() -> None:
+    question = st.session_state.get("floating_chat_question", "").strip()
+    st.session_state.chat_notice = ""
+    if not question:
+        st.session_state.chat_notice = "Enter a question to send."
+        return
+    if st.session_state.pending_ai:
+        return
+    if st.session_state.chat_count >= MAX_QUESTIONS_PER_SESSION:
+        st.session_state.chat_notice = "Question limit reached for this session."
+        return
+    queue_ai(question)
+    finish_ai()
+
+
 def show_floating_chat() -> None:
     with st.container(key="chat_panel_open"):
         st.markdown('<div class="chat-panel-heading">Ask Asthi</div>', unsafe_allow_html=True)
@@ -851,21 +866,20 @@ def show_floating_chat() -> None:
                 with st.chat_message(message["role"]):
                     st.write(message["content"])
         with st.form("floating_chat_form", clear_on_submit=True):
-            question = st.text_input(
+            st.text_input(
                 "Your question",
                 max_chars=MAX_QUESTION_CHARS,
                 placeholder="Ask a question about Shrayan...",
                 label_visibility="collapsed",
+                key="floating_chat_question",
             )
-            send = st.form_submit_button("Send", use_container_width=True)
-        if send:
-            if not question.strip():
-                st.warning("Enter a question to send.")
-            elif st.session_state.chat_count >= MAX_QUESTIONS_PER_SESSION:
-                st.warning("Question limit reached for this session.")
-            else:
-                queue_ai(question)
-                finish_ai()
+            st.form_submit_button(
+                "Send",
+                use_container_width=True,
+                on_click=submit_floating_chat,
+            )
+        if st.session_state.get("chat_notice"):
+            st.warning(st.session_state.chat_notice)
 
 
 # ----------------------------------------------------------------------------
