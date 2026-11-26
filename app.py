@@ -848,10 +848,6 @@ def show_floating_chat() -> None:
             '<div class="chat-panel-caption">Ask about Shrayan\'s experience, projects, skills, or contact details.</div>',
             unsafe_allow_html=True,
         )
-        with st.container(key="chat_history"):
-            for message in st.session_state.chat[-12:]:
-                with st.chat_message(message["role"]):
-                    st.write(message["content"])
         with st.form("floating_chat_form", clear_on_submit=True):
             question = st.text_input(
                 "Your question",
@@ -868,6 +864,10 @@ def show_floating_chat() -> None:
             else:
                 queue_ai(question)
                 finish_ai()
+        with st.container(key="chat_history"):
+            for message in st.session_state.chat[-12:]:
+                with st.chat_message(message["role"]):
+                    st.write(message["content"])
 
 
 # ----------------------------------------------------------------------------
@@ -1103,8 +1103,13 @@ st.html(
   const previous = window.__asthiChatVisibility;
   previous?.intersection?.disconnect();
   previous?.mutations?.disconnect();
+  previous?.chatMutations?.disconnect();
 
   const state = { seen: previous?.seen ?? false };
+  const scrollChatToLatest = () => {
+    const history = document.querySelector(".st-key-chat_history");
+    if (history) requestAnimationFrame(() => { history.scrollTop = history.scrollHeight; });
+  };
   const getScrollRoot = (element) => {
     for (let parent = element.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
       const style = getComputedStyle(parent);
@@ -1130,8 +1135,11 @@ st.html(
   };
   state.mutations = new MutationObserver(bind);
   state.mutations.observe(document.body, { childList: true, subtree: true });
+  state.chatMutations = new MutationObserver(scrollChatToLatest);
+  state.chatMutations.observe(document.body, { childList: true, subtree: true });
   window.__asthiChatVisibility = state;
   bind();
+  scrollChatToLatest();
 })();
 </script>
 """,
