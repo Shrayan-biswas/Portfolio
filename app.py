@@ -519,10 +519,10 @@ html.asthi-chat-available .st-key-chat_launcher{opacity:1;visibility:visible;poi
 .st-key-chat_launcher button{width:100%;min-height:2.8rem;background:#fff;color:#000;border:1px solid #fff;border-radius:2px;font:700 .72rem 'JetBrains Mono',monospace;letter-spacing:.08em}
 .st-key-chat_launcher button:hover{background:#000;color:#fff;border-color:#fff}
 .st-key-chat_panel_open{position:fixed!important;right:clamp(12px,2vw,28px);bottom:calc(clamp(88px,12vh,104px) + 52px);z-index:999;width:min(440px,calc(100vw - 2rem))!important;max-height:min(58dvh,440px);overflow-y:auto;padding:1rem;border:1px solid var(--line);background:#080808;transform-origin:right bottom;animation:chat-panel-open .18s ease-out}
-.st-key-chat_panel_open [data-testid="stVerticalBlock"]{gap:.65rem}
+.st-key-chat_panel_open [data-testid="stVerticalBlock"]{gap:.45rem}
 .chat-panel-heading{font:700 .95rem 'Space Grotesk',sans-serif;color:#fff}
 .chat-panel-caption{font:400 .68rem/1.5 'JetBrains Mono',monospace;color:var(--chalk)}
-.st-key-chat_history{min-height:0;max-height:min(310px,30dvh);overflow-y:auto;padding:.1rem .15rem}
+.st-key-chat_history{min-height:0;max-height:min(250px,22dvh);overflow-y:auto;padding:.1rem .15rem}
 .st-key-chat_panel_open [data-testid="stChatMessage"]{background:#111;border:1px solid var(--line);padding:.65rem}
 .st-key-chat_panel_open [data-testid="stForm"]{margin:0;padding:.65rem;border:1px solid var(--line);background:#0b0b0b}
 .st-key-chat_panel_open [data-testid="InputInstructions"]{display:none!important}
@@ -578,7 +578,7 @@ html.asthi-chat-available .st-key-chat_launcher{opacity:1;visibility:visible;poi
   .st-key-chat_launcher img{width:2.8rem;height:2.8rem}
   .st-key-chat_launcher button{min-height:2.45rem;font-size:.65rem}
   .st-key-chat_panel_open{right:10px;bottom:130px;width:min(360px,calc(100vw - 1.25rem))!important;max-height:min(54dvh,380px);padding:.75rem}
-  .st-key-chat_history{max-height:min(110px,18dvh)}
+  .st-key-chat_history{max-height:min(100px,14dvh)}
 }
 @media(max-width:360px){
   .nav-icons{gap:.2rem}
@@ -841,13 +841,15 @@ def toggle_chat() -> None:
 
 def show_floating_chat() -> None:
     with st.container(key="chat_panel_open"):
-        title_col, close_col = st.columns([5, 1], vertical_alignment="center")
-        title_col.markdown('<div class="chat-panel-heading">Ask Asthi</div>', unsafe_allow_html=True)
-        close_col.button("×", key="close_chat", on_click=toggle_chat, use_container_width=True)
+        st.markdown('<div class="chat-panel-heading">Ask Asthi</div>', unsafe_allow_html=True)
         st.markdown(
             '<div class="chat-panel-caption">Ask about Shrayan\'s experience, projects, skills, or contact details.</div>',
             unsafe_allow_html=True,
         )
+        with st.container(key="chat_history"):
+            for message in st.session_state.chat[-12:]:
+                with st.chat_message(message["role"]):
+                    st.write(message["content"])
         with st.form("floating_chat_form", clear_on_submit=True):
             question = st.text_input(
                 "Your question",
@@ -864,10 +866,6 @@ def show_floating_chat() -> None:
             else:
                 queue_ai(question)
                 finish_ai()
-        with st.container(key="chat_history"):
-            for message in st.session_state.chat[-12:]:
-                with st.chat_message(message["role"]):
-                    st.write(message["content"])
 
 
 # ----------------------------------------------------------------------------
@@ -1108,7 +1106,16 @@ st.html(
   const state = { seen: previous?.seen ?? false };
   const scrollChatToLatest = () => {
     const history = document.querySelector(".st-key-chat_history");
-    if (history) requestAnimationFrame(() => { history.scrollTop = history.scrollHeight; });
+    const replies = history?.querySelectorAll('[aria-label="Chat message from assistant"]');
+    const latestReply = replies?.[replies.length - 1];
+    if (history && latestReply) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        history.scrollTop = Math.max(
+          0,
+          history.scrollTop + latestReply.getBoundingClientRect().top - history.getBoundingClientRect().top
+        );
+      }));
+    }
   };
   const getScrollRoot = (element) => {
     for (let parent = element.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
