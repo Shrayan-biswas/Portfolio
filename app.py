@@ -13,11 +13,14 @@ from pathlib import Path
 
 import requests
 import streamlit as st
+from streamlit.errors import StreamlitSecretNotFoundError
 
 # ----------------------------------------------------------------------------
 # NEMOTRON ASSISTANT SETTINGS
 # ----------------------------------------------------------------------------
-NVIDIA_API_KEY = ""  # <-- PASTE YOUR NVIDIA API KEY HERE (starts with nvapi-). Free key: build.nvidia.com
+NVIDIA_API_KEY = ""
+NVIDIA_API_KEY_FILE = Path(r"C:\Games\NVIDIA_API_KEY.txt")
+LICENSE_PATH = Path(__file__).with_name("LICENSE")
 NEMOTRON_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"  # small and fast; any chat model ID from build.nvidia.com works
 NEMOTRON_FALLBACKS = []
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
@@ -44,6 +47,7 @@ BASE = Path(__file__).parent
 RESUME_PATH = BASE / "assets" / "Shrayan_Biswas_Resume.pdf"
 ASSETS_DIR = BASE / "assets"
 SHOTS_DIR = ASSETS_DIR / "screenshots"
+LOGO_PATH = ASSETS_DIR / "asthi_logo.png"
 SHOW_PLACEHOLDERS = True  # set False to hide empty snapshot slots
 
 STATS = [("11", "Lab projects"), ("~8", "CGPA"), ("2", "Certifications")]
@@ -267,7 +271,30 @@ def ambient_layer() -> str:
 
 @st.cache_data(show_spinner=False)
 def load_resume() -> bytes:
-    return RESUME_PATH.read_bytes() if RESUME_PATH.exists() else b""
+    return RESUME_PATH.read_bytes()
+
+
+def show_resume_download(key: str, show_missing: bool = False) -> None:
+    if not RESUME_PATH.is_file():
+        if show_missing:
+            st.info("Resume PDF not found. Add it at assets/Shrayan_Biswas_Resume.pdf to enable downloads.")
+        return
+    try:
+        resume = load_resume()
+    except OSError as error:
+        st.error(f"Could not read the resume PDF: {error}")
+        return
+    if not resume.startswith(b"%PDF-"):
+        st.error("The resume file is not a valid PDF. Replace assets/Shrayan_Biswas_Resume.pdf with a valid PDF.")
+        return
+    st.download_button(
+        "Download resume (PDF)",
+        data=resume,
+        file_name="Shrayan_Biswas_Resume.pdf",
+        mime="application/pdf",
+        key=key,
+        use_container_width=True,
+    )
 
 
 MIMES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif"}
@@ -410,7 +437,7 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid #fff!
 .edu span{font:400 .7rem 'JetBrains Mono',monospace;color:var(--chalk)}
 
 /* Terminal */
-[class*="st-key-cli"]{border:1px solid var(--line);background:rgba(10,10,10,.96);box-shadow:0 30px 80px rgba(0,0,0,.98);gap:0}
+[class*="st-key-cli"]{border:1px solid var(--line);background:rgba(10,10,10,.96);gap:0}
 [class*="st-key-cli"] [data-testid="stVerticalBlock"]{gap:0}
 .cli-head{display:flex;justify-content:space-between;padding:.6rem 1rem;background:#000;border-bottom:1px solid var(--line);font:400 .62rem 'JetBrains Mono',monospace;letter-spacing:.2em;color:var(--chalk)}
 .cli-head i{width:8px;height:8px;background:#fff;display:inline-block;margin-right:.6rem}
@@ -420,7 +447,10 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid #fff!
 .t-prompt{color:#fff;font-weight:700}
 .t-out{padding-left:1rem;color:var(--chalk)}.t-out b{color:#fff;font-weight:500}.t-out a{color:#fff!important;text-decoration:underline}
 [class*="st-key-cli"] [data-testid="stForm"]{border:none;padding:0;border-top:1px solid var(--line);background:#000}
-[class*="st-key-cli"] [data-testid="stForm"] [data-testid="stHorizontalBlock"]{align-items:center;gap:.5rem;padding:.2rem .8rem}
+[class*="st-key-cli"] [data-testid="stForm"] [data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:center;gap:.5rem;padding:.2rem .8rem}
+[class*="st-key-cli"] [data-testid="stForm"] [data-testid="stColumn"]{width:auto!important;min-width:0!important;flex:none!important}
+[class*="st-key-cli"] [data-testid="stForm"] [data-testid="stColumn"]:first-child{min-width:0!important}
+[class*="st-key-cli"] [data-testid="stForm"] [data-testid="stColumn"]:last-child button{min-width:3.5rem}
 [class*="st-key-cli"] [data-baseweb="input"],[class*="st-key-cli"] [data-baseweb="base-input"]{background:transparent!important;border:none!important}
 [class*="st-key-cli"] input{background:transparent!important;color:#fff!important;font:400 .76rem 'JetBrains Mono',monospace!important;padding-left:.3rem!important}
 [class*="st-key-cli"] input::placeholder{color:rgba(163,163,163,.5)!important}
@@ -463,6 +493,105 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid #fff!
 /* Footer */
 .foot{margin-top:3rem;border-top:1px solid var(--line);padding:1.6rem 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;font:400 .68rem 'JetBrains Mono',monospace;letter-spacing:.12em;color:var(--chalk)}
 .foot b{color:#fff;font-weight:700}
+.copyright{display:inline-block;margin-top:.5rem;color:var(--ash);font-size:.58rem;letter-spacing:.06em}
+.license-link{color:var(--silver)!important;text-decoration:underline;text-underline-offset:2px}
+.license-link:hover{color:#fff!important}
+
+/* Responsive layout */
+.block-container{width:min(calc(100% - 2.5rem),1440px);max-width:1440px;padding:clamp(4.8rem,8vh,6rem) 0 5.5rem!important}
+[data-testid="stHorizontalBlock"]:has([class*="st-key-cli"]){display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:clamp(1.2rem,3vw,3rem);align-items:start}
+[data-testid="stHorizontalBlock"]:has([class*="st-key-cli"])>[data-testid="stColumn"],
+[data-testid="stHorizontalBlock"]:has([class*="st-key-cli"])>[data-testid="column"]{width:100%!important;min-width:0!important;flex:none!important}
+.h1{font-size:clamp(2.2rem,5vw,4.4rem);overflow-wrap:anywhere}
+.monolith-card,.st-key-card_comms{min-width:0}
+.pc-url,.cc span{overflow-wrap:anywhere}
+.cli-out{height:clamp(15rem,38vh,22rem)}
+.st-key-chat_launcher{position:fixed!important;right:clamp(12px,2vw,28px);bottom:clamp(12px,2vh,26px);z-index:1000;width:190px!important;padding:.35rem .55rem;border:1px solid var(--line);background:#080808;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(.5rem);transition:opacity .2s ease,transform .2s ease,visibility .2s}
+html.asthi-chat-available .st-key-chat_launcher{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0)}
+.st-key-chat_launcher [data-testid="stHorizontalBlock"]{align-items:center;gap:.25rem;flex-direction:row!important;flex-wrap:nowrap!important}
+.st-key-chat_launcher [data-testid="stColumn"],
+.st-key-chat_launcher [data-testid="column"]{min-width:0!important;width:auto!important;flex:0 0 auto!important}
+.st-key-chat_launcher [data-testid="stColumn"]:first-child,
+.st-key-chat_launcher [data-testid="column"]:first-child{width:3.25rem!important}
+.st-key-chat_launcher [data-testid="stColumn"]:last-child,
+.st-key-chat_launcher [data-testid="column"]:last-child{flex:1 1 auto!important}
+.st-key-chat_launcher img{width:3.25rem;height:3.25rem;object-fit:cover;border:2px solid var(--line);border-radius:50%}
+.st-key-chat_launcher button{width:100%;min-height:2.8rem;background:#fff;color:#000;border:1px solid #fff;border-radius:2px;font:700 .72rem 'JetBrains Mono',monospace;letter-spacing:.08em}
+.st-key-chat_launcher button:hover{background:#000;color:#fff;border-color:#fff}
+.st-key-chat_panel_open{position:fixed!important;right:clamp(12px,2vw,28px);bottom:clamp(88px,12vh,104px);z-index:999;width:min(440px,calc(100vw - 2rem))!important;max-height:min(58dvh,440px);overflow-y:auto;padding:1rem;border:1px solid var(--line);background:#080808;transform-origin:right bottom;animation:chat-panel-open .18s ease-out}
+.st-key-chat_panel_open [data-testid="stVerticalBlock"]{gap:.65rem}
+.chat-panel-heading{font:700 .95rem 'Space Grotesk',sans-serif;color:#fff}
+.chat-panel-caption{font:400 .68rem/1.5 'JetBrains Mono',monospace;color:var(--chalk)}
+.st-key-chat_history{min-height:0;max-height:min(310px,30dvh);overflow-y:auto;padding:.1rem .15rem}
+.st-key-chat_panel_open [data-testid="stChatMessage"]{background:#111;border:1px solid var(--line);padding:.65rem}
+.st-key-chat_panel_open [data-testid="stForm"]{margin:0;padding:.65rem;border:1px solid var(--line);background:#0b0b0b}
+.st-key-chat_panel_open [data-testid="InputInstructions"]{display:none!important}
+.st-key-chat_panel_open [data-testid="stFormSubmitButton"] button{width:100%;border:1px solid var(--line);border-radius:0;background:#111;color:#fff;font:500 .72rem 'JetBrains Mono',monospace}
+.st-key-chat_panel_open [data-testid="stFormSubmitButton"] button:hover{border-color:#fff;background:#151515}
+@keyframes chat-panel-open{from{opacity:0;transform:scale(.94) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+
+@media(min-width:1600px){
+  .block-container{width:min(calc(100% - 5rem),1520px);max-width:1520px}
+}
+@media(max-width:980px){
+  .block-container{width:calc(100% - 2rem);padding-top:5.2rem!important}
+  .nav-in{padding:0 1rem}
+  .nav-links{display:none}
+  .stats div{padding:.75rem .6rem}
+  .stats span{letter-spacing:.1em}
+  .grid4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid3{grid-template-columns:1fr}
+}
+@media(max-width:760px){
+  [data-testid="stHorizontalBlock"]:has([class*="st-key-cli"]){grid-template-columns:minmax(0,1fr)}
+  .pc-cols{grid-template-columns:1fr}
+  .cli-out{height:17rem}
+  .nav-in{height:3.6rem}
+  .nav-icons{gap:.3rem}
+  .icon-btn{width:2.15rem;height:2.15rem}
+  [class*="st-key-chips"] [data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:.35rem!important}
+  [class*="st-key-chips"] [data-testid="stColumn"]{width:auto!important;min-width:0!important;flex:none!important}
+  [class*="st-key-chips"] [data-testid="stElementContainer"],
+  [class*="st-key-chips"] [data-testid="stButton"]{width:100%!important;min-width:0!important}
+  [class*="st-key-chips"] button{width:100%!important;min-height:2rem;padding:.25rem .2rem;font-size:.6rem;letter-spacing:0;white-space:nowrap}
+}
+@media(max-width:560px){
+  .block-container{width:calc(100% - 1.25rem);padding-top:4.7rem!important}
+  .nav-in{padding:0 .65rem}
+  .brand{font-size:.68rem;letter-spacing:.12em;gap:.45rem}
+  .nav-icons .icon-btn{width:1.9rem;height:1.9rem}
+  .h1{font-size:clamp(2rem,11vw,3.2rem);letter-spacing:.025em}
+  .role{font-size:.7rem;letter-spacing:.08em}
+  .tag,.about p{font-size:.94rem}
+  .stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .stats div{padding:.7rem .4rem}
+  .stats b{font-size:1.2rem}
+  .stats span{font-size:.48rem;letter-spacing:.06em}
+  .btn{padding:.7rem .8rem;font-size:.62rem}
+  .monolith-card{padding:1rem}
+  .grid4,.contact-grid{grid-template-columns:1fr}
+  .shots{grid-template-columns:minmax(0,1fr)}
+  .foot{align-items:flex-start;font-size:.62rem;letter-spacing:.07em}
+  .foot .icon-row{margin-top:.25rem!important}
+  .copyright{font-size:.52rem;line-height:1.6}
+  .st-key-chat_launcher{right:10px;bottom:10px;width:164px!important;padding:.25rem}
+  .st-key-chat_launcher img{width:2.8rem;height:2.8rem}
+  .st-key-chat_launcher button{min-height:2.45rem;font-size:.65rem}
+  .st-key-chat_panel_open{right:10px;bottom:76px;width:min(360px,calc(100vw - 1.25rem))!important;max-height:min(54dvh,380px);padding:.75rem}
+  .st-key-chat_history{max-height:min(110px,18dvh)}
+}
+@media(max-width:360px){
+  .nav-icons{gap:.2rem}
+  .nav-icons .icon-btn{width:1.7rem;height:1.7rem}
+  .stats span{font-size:.43rem}
+}
+@media(max-height:700px) and (min-width:761px){
+  .block-container{padding-top:4.5rem!important}
+  .cli-out{height:15rem}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -547,27 +676,35 @@ if "hist" not in st.session_state:
 # ----------------------------------------------------------------------------
 # Nemotron assistant
 # ----------------------------------------------------------------------------
-def key_line() -> int:
-    """Line number of the NVIDIA_API_KEY assignment in this file (shown in the chat if the key is missing)."""
-    try:
-        for n, line in enumerate(Path(__file__).read_text(encoding="utf-8").splitlines(), 1):
-            if line.startswith("NVIDIA_API_KEY"):
-                return n
-    except OSError:
-        pass
-    return 0
-
-
 def get_api_key() -> str:
-    if NVIDIA_API_KEY.strip():
-        return NVIDIA_API_KEY.strip()
     try:
         value = st.secrets.get("NVIDIA_API_KEY", "")
-        if value:
-            return str(value).strip()
-    except Exception:
-        pass
-    return os.environ.get("NVIDIA_API_KEY", "").strip()
+    except StreamlitSecretNotFoundError:
+        value = ""
+    if value:
+        return str(value).strip().strip("\"'")
+    value = os.environ.get("NVIDIA_API_KEY", "").strip()
+    if value:
+        return value.strip("\"'")
+    if NVIDIA_API_KEY.strip():
+        return NVIDIA_API_KEY.strip().strip("\"'")
+    try:
+        return NVIDIA_API_KEY_FILE.read_text(encoding="utf-8").strip().strip("\"'")
+    except FileNotFoundError:
+        return ""
+
+
+def license_download_link() -> str:
+    try:
+        license_bytes = LICENSE_PATH.read_bytes()
+    except OSError as error:
+        st.error(f"Could not read the MIT license file: {error}")
+        return ""
+    license_uri = base64.b64encode(license_bytes).decode("ascii")
+    return (
+        f'<a class="license-link" href="data:text/plain;base64,{license_uri}" '
+        'download="LICENSE">MIT License</a>'
+    )
 
 
 def build_facts() -> str:
@@ -619,9 +756,9 @@ def call_nemotron() -> tuple:
     """Returns (ok, text). Tries NEMOTRON_MODEL, then each fallback, and reports the real error if all fail."""
     key = get_api_key().strip().strip("\"'").removeprefix("Bearer ").strip()
     if not key:
-        return False, f"The assistant is switched off. Add the NVIDIA API key on line {key_line()} of app.py (or in .streamlit/secrets.toml)."
+        return False, "The assistant is switched off. Configure NVIDIA_API_KEY in environment variables, Streamlit secrets, or C:\\Games\\NVIDIA_API_KEY.txt."
     if not key.startswith("nvapi-"):
-        return False, f"That key doesn't look right: NVIDIA keys start with nvapi-. Check line {key_line()} of app.py or your secrets.toml."
+        return False, "That key doesn't look right: NVIDIA keys start with nvapi-. Check your NVIDIA_API_KEY configuration."
     turns = [m for m in st.session_state.chat if m["ok"]][-8:]
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json", "Accept": "application/json"}
     url = f"{NVIDIA_BASE_URL}/chat/completions"
@@ -648,7 +785,7 @@ def call_nemotron() -> tuple:
             if r.status_code != 400:
                 break
         if r.status_code in (401, 403):
-            return False, f"The NVIDIA API key was rejected ({r.status_code}). Check the key on line {key_line()} of app.py or in secrets.toml."
+            return False, f"The NVIDIA API key was rejected ({r.status_code}). Check your NVIDIA_API_KEY configuration."
         if r.status_code == 429:
             return False, "The assistant is busy right now (rate limit). Please try again shortly."
         if r.ok:
@@ -661,7 +798,7 @@ def call_nemotron() -> tuple:
             last = "the model returned an empty answer"
         else:
             last = f"{r.status_code}: {api_error_text(r)}"
-    return False, f"The model service could not answer ({last}). Check NEMOTRON_MODEL (line {key_line() + 1} of app.py)."
+    return False, f"The model service could not answer ({last}). Check the configured NEMOTRON_MODEL."
 
 
 def ai_html(text: str) -> str:
@@ -692,6 +829,46 @@ if "chat" not in st.session_state:
     st.session_state.chat_count = 0
 if "pending_ai" not in st.session_state:
     st.session_state.pending_ai = False
+
+
+if "chat_open" not in st.session_state:
+    st.session_state.chat_open = False
+
+
+def toggle_chat() -> None:
+    st.session_state.chat_open = not st.session_state.chat_open
+
+
+def show_floating_chat() -> None:
+    with st.container(key="chat_panel_open"):
+        title_col, close_col = st.columns([5, 1], vertical_alignment="center")
+        title_col.markdown('<div class="chat-panel-heading">Ask Asthi</div>', unsafe_allow_html=True)
+        close_col.button("×", key="close_chat", on_click=toggle_chat, use_container_width=True)
+        st.markdown(
+            '<div class="chat-panel-caption">Ask about Shrayan\'s experience, projects, skills, or contact details.</div>',
+            unsafe_allow_html=True,
+        )
+        with st.container(key="chat_history"):
+            for message in st.session_state.chat[-12:]:
+                with st.chat_message(message["role"]):
+                    st.write(message["content"])
+        with st.form("floating_chat_form", clear_on_submit=True):
+            question = st.text_input(
+                "Your question",
+                max_chars=MAX_QUESTION_CHARS,
+                placeholder="Ask a question about Shrayan...",
+                label_visibility="collapsed",
+            )
+            send = st.form_submit_button("Send", use_container_width=True)
+        if send:
+            if not question.strip():
+                st.warning("Enter a question to send.")
+            elif st.session_state.chat_count >= MAX_QUESTIONS_PER_SESSION:
+                st.warning("Question limit reached for this session.")
+            else:
+                queue_ai(question)
+                finish_ai()
+
 
 # ----------------------------------------------------------------------------
 # Navigation
@@ -732,14 +909,7 @@ with left:
 </div>
 """
     )
-    if RESUME_PATH.exists():
-        st.download_button(
-            "Download resume (PDF)",
-            data=load_resume(),
-            file_name="Shrayan_Biswas_Resume.pdf",
-            mime="application/pdf",
-            key="dl_hero",
-        )
+    show_resume_download("dl_hero", show_missing=True)
 
 with right:
     with st.container(key="cli"):
@@ -894,14 +1064,7 @@ with st.container(key="card_comms"):
 </div>
 """
     )
-    if RESUME_PATH.exists():
-        st.download_button(
-            "Download resume (PDF)",
-            data=load_resume(),
-            file_name="Shrayan_Biswas_Resume.pdf",
-            mime="application/pdf",
-            key="dl_contact",
-        )
+    show_resume_download("dl_contact")
 
 # ----------------------------------------------------------------------------
 # Footer / credit
@@ -909,8 +1072,68 @@ with st.container(key="card_comms"):
 md(
     f"""
 <div class="foot">
-<div>0x00 // Designed and built by <b>{NAME}</b></div>
+<div>0x00 // Designed and built by <b>{NAME}</b><br><span class="copyright">© 2026 {NAME}. Released under the {license_download_link()}.</span></div>
 <div class="icon-row" style="margin:0">{icon_link("linkedin", LINKEDIN, "LinkedIn")}{icon_link("github", GITHUB, "GitHub")}{icon_link("mail", "mailto:" + EMAIL, "Email")}</div>
 </div>
 """
+)
+
+with st.container(key="chat_launcher"):
+    avatar_col, button_col = st.columns([1, 1.8], vertical_alignment="center")
+    with avatar_col:
+        if LOGO_PATH.is_file():
+            st.image(str(LOGO_PATH), width=56)
+        else:
+            st.error("Add the Asthi avatar at assets/asthi_logo.png.")
+    with button_col:
+        st.button(
+            "Close chat" if st.session_state.chat_open else "Ask Asthi",
+            key="toggle_chat",
+            on_click=toggle_chat,
+            use_container_width=True,
+        )
+
+if st.session_state.chat_open:
+    show_floating_chat()
+
+st.html(
+    """
+<script>
+(() => {
+  const previous = window.__asthiChatVisibility;
+  previous?.intersection?.disconnect();
+  previous?.mutations?.disconnect();
+
+  const state = { seen: previous?.seen ?? false };
+  const getScrollRoot = (element) => {
+    for (let parent = element.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+      const style = getComputedStyle(parent);
+      if (/(auto|scroll)/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight + 1) {
+        return parent;
+      }
+    }
+    return null;
+  };
+  const bind = () => {
+    const consoleElement = document.querySelector(".st-key-cli");
+    if (!consoleElement || state.target === consoleElement) return;
+    state.intersection?.disconnect();
+    state.target = consoleElement;
+    state.intersection = new IntersectionObserver(([entry]) => {
+      state.seen ||= entry.isIntersecting;
+      document.documentElement.classList.toggle(
+        "asthi-chat-available",
+        state.seen && (!entry.isIntersecting || entry.intersectionRatio < 0.01)
+      );
+    }, { root: getScrollRoot(consoleElement), threshold: 0.01 });
+    state.intersection.observe(consoleElement);
+  };
+  state.mutations = new MutationObserver(bind);
+  state.mutations.observe(document.body, { childList: true, subtree: true });
+  window.__asthiChatVisibility = state;
+  bind();
+})();
+</script>
+""",
+    unsafe_allow_javascript=True,
 )
