@@ -22,7 +22,7 @@ from streamlit.errors import StreamlitSecretNotFoundError
 NVIDIA_API_KEY = ""
 NVIDIA_API_KEY_FILE = Path(r"C:\Games\NVIDIA_API_KEY.txt")
 LICENSE_PATH = Path(__file__).with_name("LICENSE")
-NEMOTRON_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"  # small and fast; any chat model ID from build.nvidia.com works
+NEMOTRON_MODEL = "nvidia/nemotron-3.5-bolt-e4b"
 NEMOTRON_FALLBACKS = []
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 MAX_QUESTIONS_PER_SESSION = 15  # protects your free quota from heavy use
@@ -777,7 +777,7 @@ def call_nemotron(key: str | None = None, turns: list[dict] | None = None) -> tu
             + [{"role": m["role"], "content": m["content"]} for m in turns],
             "temperature": 0.3,
             "top_p": 0.9,
-            "max_tokens": 700,
+            "max_tokens": 300,
             "stream": False,
         }
         for with_switch in (True, False):  # some models reject the thinking switch with a 400
