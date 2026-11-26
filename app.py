@@ -5,6 +5,7 @@ Credit: Shrayan Biswas | https://www.linkedin.com/in/shrayan-biswas-a1259225a/ |
 """
 
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import html
 import os
 import random
@@ -26,6 +27,11 @@ NEMOTRON_FALLBACKS = []
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 MAX_QUESTIONS_PER_SESSION = 15  # protects your free quota from heavy use
 MAX_QUESTION_CHARS = 300
+
+
+@st.cache_resource
+def get_chat_executor() -> ThreadPoolExecutor:
+    return ThreadPoolExecutor(max_workers=4, thread_name_prefix="asthi-chat")
 
 # ----------------------------------------------------------------------------
 # CONTENT - edit this block to update the site
@@ -752,14 +758,15 @@ def api_error_text(r) -> str:
     return " ".join(str(msg).split())[:180]
 
 
-def call_nemotron() -> tuple:
+def call_nemotron(key: str | None = None, turns: list[dict] | None = None) -> tuple[bool, str]:
     """Returns (ok, text). Tries NEMOTRON_MODEL, then each fallback, and reports the real error if all fail."""
-    key = get_api_key().strip().strip("\"'").removeprefix("Bearer ").strip()
+    key = (key if key is not None else get_api_key()).strip().strip("\"'").removeprefix("Bearer ").strip()
     if not key:
         return False, "The assistant is switched off. Configure NVIDIA_API_KEY in environment variables, Streamlit secrets, or C:\\Games\\NVIDIA_API_KEY.txt."
     if not key.startswith("nvapi-"):
         return False, "That key doesn't look right: NVIDIA keys start with nvapi-. Check your NVIDIA_API_KEY configuration."
-    turns = [m for m in st.session_state.chat if m["ok"]][-8:]
+    if turns is None:
+        turns = [m for m in st.session_state.chat if m["ok"]][-8:]
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json", "Accept": "application/json"}
     url = f"{NVIDIA_BASE_URL}/chat/completions"
     last = "no response"
@@ -779,7 +786,9 @@ def call_nemotron() -> tuple:
             else:
                 body.pop("chat_template_kwargs", None)
             try:
-                r = requests.post(url, headers=headers, json=body, timeout=40)
+                r = requests.post(url, headers=headers, json=body, timeout=(10, 90))
+            except requests.exceptions.ReadTimeout:
+                return False, "The Asthi service took too long to reply. Please wait a moment, then try again."
             except requests.RequestException as exc:
                 return False, f"I couldn't reach the Asthi service ({type(exc).__name__}). Check your internet connection and try again."
             if r.status_code != 400:
@@ -807,7 +816,7 @@ def ai_html(text: str) -> str:
 
 
 def queue_ai(question: str) -> None:
-    """Called from the terminal: shows a 'thinking' line now, the answer is fetched right after the redraw."""
+    """Queue an assistant request without blocking the Streamlit script."""
     if st.session_state.chat_count >= MAX_QUESTIONS_PER_SESSION:
         st.session_state.hist.append(ai_html(f"Question limit reached for this session. Email {EMAIL} to continue."))
         return
@@ -815,13 +824,21 @@ def queue_ai(question: str) -> None:
     st.session_state.chat.append({"role": "user", "content": question, "ok": True})
     st.session_state.hist.append('<div class="t-out ai-wait"><span class="c-tag">ASTHI&gt;</span>thinking<span class="dots"></span></div>')
     st.session_state.pending_ai = True
+    key = get_api_key()
+    turns = [message.copy() for message in st.session_state.chat if message["ok"]][-8:]
+    st.session_state.chat_future = get_chat_executor().submit(call_nemotron, key, turns)
 
 
-def finish_ai() -> None:
-    ok, text = call_nemotron()
+def finish_ai() -> bool:
+    future = st.session_state.get("chat_future")
+    if not st.session_state.pending_ai or future is None or not future.done():
+        return False
+    ok, text = future.result()
     st.session_state.chat.append({"role": "assistant", "content": text, "ok": ok})
     st.session_state.hist[-1] = ai_html(text)
     st.session_state.pending_ai = False
+    st.session_state.chat_future = None
+    return True
 
 
 if "chat" not in st.session_state:
@@ -829,6 +846,8 @@ if "chat" not in st.session_state:
     st.session_state.chat_count = 0
 if "pending_ai" not in st.session_state:
     st.session_state.pending_ai = False
+if "chat_future" not in st.session_state:
+    st.session_state.chat_future = None
 
 
 if "chat_open" not in st.session_state:
@@ -851,7 +870,6 @@ def submit_floating_chat() -> None:
         st.session_state.chat_notice = "Question limit reached for this session."
         return
     queue_ai(question)
-    finish_ai()
 
 
 def show_floating_chat() -> None:
@@ -865,6 +883,9 @@ def show_floating_chat() -> None:
             for message in st.session_state.chat[-12:]:
                 with st.chat_message(message["role"]):
                     st.write(message["content"])
+            if st.session_state.pending_ai:
+                with st.chat_message("assistant"):
+                    st.write("Thinking...")
         with st.form("floating_chat_form", clear_on_submit=True):
             st.text_input(
                 "Your question",
@@ -877,6 +898,7 @@ def show_floating_chat() -> None:
                 "Send",
                 use_container_width=True,
                 on_click=submit_floating_chat,
+                disabled=st.session_state.pending_ai,
             )
         if st.session_state.get("chat_notice"):
             st.warning(st.session_state.chat_notice)
@@ -935,10 +957,6 @@ with right:
             chip_cols = st.columns(5)
             for col, cmd in zip(chip_cols, ["help", "whoami", "ls projects", "skills", "cat contact"]):
                 col.button(cmd, key=f"chip_{cmd}", on_click=run_cmd, args=(cmd,))
-        if st.session_state.pending_ai:
-            finish_ai()
-            st.rerun()
-
 # ----------------------------------------------------------------------------
 # About
 # ----------------------------------------------------------------------------
@@ -1107,6 +1125,14 @@ with st.container(key="chat_launcher"):
 
 if st.session_state.chat_open:
     show_floating_chat()
+
+@st.fragment(run_every=1)
+def poll_ai_completion() -> None:
+    if finish_ai():
+        st.rerun(scope="app")
+
+
+poll_ai_completion()
 
 st.html(
     """
