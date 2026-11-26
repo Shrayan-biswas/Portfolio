@@ -506,7 +506,7 @@ a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid #fff!
 .monolith-card,.st-key-card_comms{min-width:0}
 .pc-url,.cc span{overflow-wrap:anywhere}
 .cli-out{height:clamp(15rem,38vh,22rem)}
-.st-key-chat_launcher{position:fixed!important;right:clamp(12px,2vw,28px);bottom:clamp(12px,2vh,26px);z-index:1000;width:190px!important;padding:.35rem .55rem;border:1px solid var(--line);background:#080808;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(.5rem);transition:opacity .2s ease,transform .2s ease,visibility .2s}
+.st-key-chat_launcher{position:fixed!important;right:clamp(12px,2vw,28px);bottom:calc(clamp(12px,2vh,26px) + 52px);z-index:1000;width:190px!important;padding:.35rem .55rem;border:1px solid var(--line);background:#080808;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(.5rem);transition:opacity .2s ease,transform .2s ease,visibility .2s}
 html.asthi-chat-available .st-key-chat_launcher{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0)}
 .st-key-chat_launcher [data-testid="stHorizontalBlock"]{align-items:center;gap:.25rem;flex-direction:row!important;flex-wrap:nowrap!important}
 .st-key-chat_launcher [data-testid="stColumn"],
@@ -518,7 +518,7 @@ html.asthi-chat-available .st-key-chat_launcher{opacity:1;visibility:visible;poi
 .st-key-chat_launcher img{width:3.25rem;height:3.25rem;object-fit:cover;border:2px solid var(--line);border-radius:50%}
 .st-key-chat_launcher button{width:100%;min-height:2.8rem;background:#fff;color:#000;border:1px solid #fff;border-radius:2px;font:700 .72rem 'JetBrains Mono',monospace;letter-spacing:.08em}
 .st-key-chat_launcher button:hover{background:#000;color:#fff;border-color:#fff}
-.st-key-chat_panel_open{position:fixed!important;right:clamp(12px,2vw,28px);bottom:clamp(88px,12vh,104px);z-index:999;width:min(440px,calc(100vw - 2rem))!important;max-height:min(58dvh,440px);overflow-y:auto;padding:1rem;border:1px solid var(--line);background:#080808;transform-origin:right bottom;animation:chat-panel-open .18s ease-out}
+.st-key-chat_panel_open{position:fixed!important;right:clamp(12px,2vw,28px);bottom:calc(clamp(88px,12vh,104px) + 52px);z-index:999;width:min(440px,calc(100vw - 2rem))!important;max-height:min(58dvh,440px);overflow-y:auto;padding:1rem;border:1px solid var(--line);background:#080808;transform-origin:right bottom;animation:chat-panel-open .18s ease-out}
 .st-key-chat_panel_open [data-testid="stVerticalBlock"]{gap:.65rem}
 .chat-panel-heading{font:700 .95rem 'Space Grotesk',sans-serif;color:#fff}
 .chat-panel-caption{font:400 .68rem/1.5 'JetBrains Mono',monospace;color:var(--chalk)}
@@ -574,10 +574,10 @@ html.asthi-chat-available .st-key-chat_launcher{opacity:1;visibility:visible;poi
   .foot{align-items:flex-start;font-size:.62rem;letter-spacing:.07em}
   .foot .icon-row{margin-top:.25rem!important}
   .copyright{font-size:.52rem;line-height:1.6}
-  .st-key-chat_launcher{right:10px;bottom:10px;width:164px!important;padding:.25rem}
+  .st-key-chat_launcher{right:10px;bottom:64px;width:164px!important;padding:.25rem}
   .st-key-chat_launcher img{width:2.8rem;height:2.8rem}
   .st-key-chat_launcher button{min-height:2.45rem;font-size:.65rem}
-  .st-key-chat_panel_open{right:10px;bottom:76px;width:min(360px,calc(100vw - 1.25rem))!important;max-height:min(54dvh,380px);padding:.75rem}
+  .st-key-chat_panel_open{right:10px;bottom:130px;width:min(360px,calc(100vw - 1.25rem))!important;max-height:min(54dvh,380px);padding:.75rem}
   .st-key-chat_history{max-height:min(110px,18dvh)}
 }
 @media(max-width:360px){
